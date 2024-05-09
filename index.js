@@ -1,14 +1,53 @@
 const express = require("express");
 const cors = require("cors");
 const app = express();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
 //config
 require("dotenv").config();
 
 //middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      `${process.env.SITE_URL}`,
+      "https://car-doctor-fullstack.netlify.app",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+////////////my middleware
+
+const logger = async (req, res, next) => {
+  console.log("Logger:", req.hostname, req.originalUrl);
+  next();
+};
+
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+  console.log("token in verify middleware", token);
+  if (!token) {
+    res.status(401).send({ message: "User Unauthorized" });
+  }
+  jwt.verify(token, process.env.SECRET_TOKEN, (err, decoded) => {
+    if (err) {
+      console.log(err);
+      res.status(401).send({ message: "Unauthorized" });
+    }
+
+    console.log("docoded value:", decoded);
+    req.user = decoded;
+  });
+  next();
+};
+
+////////////my middleware
 
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASS}@cluster0.xqxnoib.mongodb.net`;
 
@@ -26,8 +65,30 @@ async function run() {
     const serviceCollection = client.db("carDoctor").collection("services");
     const bookingCollection = client.db("carDoctor").collection("booked");
 
+    //jwt started
+    //post
+    app.post("/jwt", async (req, res) => {
+      const userEmail = await req?.body;
+      const token = jwt.sign(
+        {
+          email: userEmail?.email,
+        },
+        process.env.SECRET_TOKEN,
+        { expiresIn: "1h" }
+      );
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+      });
+      res.send({ status: "success" });
+    });
+
+    /////////////////////////////////////////////////////////////
+
     //get services
-    app.get("/services", async (req, res) => {
+    app.get("/services", logger, async (req, res) => {
+      console.log("/services", req.cookies);
       const cursor = serviceCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -44,6 +105,7 @@ async function run() {
     //book service
     app.post("/booked", async (req, res) => {
       const reqBody = await req?.body;
+      console.log("/booked", req.cookies);
       const { service_name, service_price, service_date, user_email } =
         reqBody?.formData;
       const doc = {
@@ -59,8 +121,13 @@ async function run() {
     });
 
     //get user specific booking service
-    app.get("/booking/:email", async (req, res) => {
+    app.get("/booking/:email", logger, verifyToken, async (req, res) => {
       const userEmail = req.params.email;
+      console.log("user from vefiryToken:", req?.user);
+      console.log("/booking", req.cookies);
+      if (req?.user?.email !== userEmail) {
+        res.status(401).send({ message: "Unauthorized" });
+      }
       const query = { user_email: userEmail };
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
