@@ -25,23 +25,23 @@ app.use(cookieParser());
 ////////////my middleware
 
 const logger = async (req, res, next) => {
-  console.log("Logger:", req.hostname, req.originalUrl);
+  // console.log("Logger:", req.hostname, req.originalUrl);
   next();
 };
 
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token;
-  console.log("token in verify middleware", token);
+  // console.log("token in verify middleware", token);
   if (!token) {
     res.status(401).send({ message: "User Unauthorized" });
   }
   jwt.verify(token, process.env.SECRET_TOKEN, (err, decoded) => {
     if (err) {
-      console.log(err);
+      // console.log(err);
       res.status(401).send({ message: "Unauthorized" });
     }
 
-    console.log("docoded value:", decoded);
+    // console.log("docoded value:", decoded);
     req.user = decoded;
   });
   next();
@@ -88,7 +88,7 @@ async function run() {
 
     //get services
     app.get("/services", logger, async (req, res) => {
-      console.log("/services", req.cookies);
+      // console.log("/services", req.cookies);
       const cursor = serviceCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -105,7 +105,7 @@ async function run() {
     //book service
     app.post("/booked", async (req, res) => {
       const reqBody = await req?.body;
-      console.log("/booked", req.cookies);
+      // console.log("/booked", req.cookies);
       const { service_name, service_price, service_date, user_email } =
         reqBody?.formData;
       const doc = {
@@ -123,8 +123,8 @@ async function run() {
     //get user specific booking service
     app.get("/booking/:email", logger, verifyToken, async (req, res) => {
       const userEmail = req.params.email;
-      console.log("user from vefiryToken:", req?.user);
-      console.log("/booking", req.cookies);
+      // console.log("user from vefiryToken:", req?.user);
+      // console.log("/booking", req.cookies);
       if (req?.user?.email !== userEmail) {
         res.status(401).send({ message: "Unauthorized" });
       }
@@ -138,15 +138,15 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookingCollection.deleteOne(query);
-      console.log(id, result);
+      // console.log(id, result);
       res.send(result);
     });
 
     app.listen(port, () => {
-      console.log(`app is listening, ${port}`);
+      // console.log(`app is listening, ${port}`);
     });
   } catch (error) {
-    console.error("Error connecting to MongoDB:", error);
+    // console.error("Error connecting to MongoDB:", error);
     process.exit(1);
   }
 }
