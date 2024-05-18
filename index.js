@@ -12,10 +12,7 @@ require("dotenv").config();
 //middleware
 app.use(
   cors({
-    origin: [
-      `${process.env.SITE_URL}`,
-      "https://car-doctor-fullstack.netlify.app",
-    ],
+    origin: ["https://car-doctor-fullstack.netlify.app"],
     credentials: true,
   })
 );
@@ -41,10 +38,10 @@ const verifyToken = async (req, res, next) => {
       res.status(401).send({ message: "Unauthorized" });
     }
 
-    // console.log("docoded value:", decoded);
-    req.user = decoded;
+    req.decodedUser = decoded;
+    // req.user = decoded;
+    next();
   });
-  next();
 };
 
 ////////////my middleware
@@ -59,6 +56,13 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+const cookieOption = {
+  httpOnly: true,
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+  secure: process.env.NODE_ENV === "production" ? true : false,
+};
+
 async function run() {
   try {
     // await client.connect();
@@ -69,19 +73,11 @@ async function run() {
     //post
     app.post("/jwt", async (req, res) => {
       const userEmail = await req?.body;
-      const token = jwt.sign(
-        {
-          email: userEmail?.email,
-        },
-        process.env.SECRET_TOKEN,
-        { expiresIn: "1h" }
-      );
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
+      const token = jwt.sign(userEmail, process.env.SECRET_TOKEN, {
+        expiresIn: "24h",
       });
-      res.send({ status: "success" });
+
+      res.cookie("token", token, cookieOption).send({ success: true });
     });
 
     /////////////////////////////////////////////////////////////
@@ -121,13 +117,15 @@ async function run() {
     });
 
     //get user specific booking service
-    app.get("/booking/:email", logger, verifyToken, async (req, res) => {
+    app.get("/booking/:email", logger, async (req, res) => {
       const userEmail = req.params.email;
+      // const decodedEmail = req.decodedUser?.email;
+
       // console.log("user from vefiryToken:", req?.user);
       // console.log("/booking", req.cookies);
-      if (req?.user?.email !== userEmail) {
-        res.status(401).send({ message: "Unauthorized" });
-      }
+      // if (decodedEmail !== userEmail) {
+      //   res.status(401).send({ message: "Unauthorized" });
+      // }
       const query = { user_email: userEmail };
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
